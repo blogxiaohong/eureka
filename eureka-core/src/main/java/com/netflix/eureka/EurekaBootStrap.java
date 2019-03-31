@@ -110,7 +110,10 @@ public class EurekaBootStrap implements ServletContextListener {
     @Override
     public void contextInitialized(ServletContextEvent event) {
         try {
+            //初始化 Eureka Server 配置环境
+            //这里使用 double check + volitile 的单例模式创建了一个 ConfigurationManager 的单例
             initEurekaEnvironment();
+            //初始化 Eureka Server 上下文
             initEurekaServerContext();
 
             ServletContext sc = event.getServletContext();
@@ -127,6 +130,7 @@ public class EurekaBootStrap implements ServletContextListener {
     protected void initEurekaEnvironment() throws Exception {
         logger.info("Setting the eureka configuration..");
 
+        //配置 Eureka 数据中心，默认为 default
         String dataCenter = ConfigurationManager.getConfigInstance().getString(EUREKA_DATACENTER);
         if (dataCenter == null) {
             logger.info("Eureka data center value eureka.datacenter is not set, defaulting to default");
@@ -134,6 +138,7 @@ public class EurekaBootStrap implements ServletContextListener {
         } else {
             ConfigurationManager.getConfigInstance().setProperty(ARCHAIUS_DEPLOYMENT_DATACENTER, dataCenter);
         }
+        //配置 Eureka 运行环境，默认为 test
         String environment = ConfigurationManager.getConfigInstance().getString(EUREKA_ENVIRONMENT);
         if (environment == null) {
             ConfigurationManager.getConfigInstance().setProperty(ARCHAIUS_DEPLOYMENT_ENVIRONMENT, TEST);
@@ -145,6 +150,9 @@ public class EurekaBootStrap implements ServletContextListener {
      * init hook for server context. Override for custom logic.
      */
     protected void initEurekaServerContext() throws Exception {
+        // 1.1 从 eureka-server.properties 配置文件中加载 EurekaServer 的配置，加载的配置全都放到了 ConfigurationManager 中去
+        // 亮点：针对各种配置项定义了一个接口 EurekaServerConfig，里面定义了大量获取配置项的方法，然后通过调用接口方法获取配置。
+        // 一般来说，设计读取配置的方式，都是通过定义大量的常量，通过 get(String propKey) 的方式获取配置
         EurekaServerConfig eurekaServerConfig = new DefaultEurekaServerConfig();
 
         // For backward compatibility
@@ -155,24 +163,33 @@ public class EurekaBootStrap implements ServletContextListener {
         logger.info(eurekaServerConfig.getJsonCodecName());
         ServerCodecs serverCodecs = new DefaultServerCodecs(eurekaServerConfig);
 
+        // 1.2 在 EurekaServer 内部初始化一个 EurekaClient，用于跟其他的 EurekaServer 节点进行注册和通信
         ApplicationInfoManager applicationInfoManager = null;
 
         if (eurekaClient == null) {
+            //声明了 EurekaInstanceConfig 对象，加载 eureka-client.properties 配置文件，将配置加载到 ConfigurationManager 中，
+            // 然后基于 EurekaInstanceConfig 对外暴露的接口来获取 eureka-client.properties 中的配置
             EurekaInstanceConfig instanceConfig = isCloud(ConfigurationManager.getDeploymentContext())
                     ? new CloudInstanceConfig()
                     : new MyDataCenterInstanceConfig();
-            
+
+            // new EurekaConfigBasedInstanceInfoProvider(instanceConfig).get() 通过 eureka-client.properties 配置文件初始化了 InstanceInfo
+            // 初始化 ApplicationInfoManager 对象，将 EurekaInstanceConfig 和 InstanceInfo 保存到 ApplicationInfoManager 对象中
             applicationInfoManager = new ApplicationInfoManager(
                     instanceConfig, new EurekaConfigBasedInstanceInfoProvider(instanceConfig).get());
-            
+
+            // 初始化 EurekaClientConfig
+            //      加载 eureka-client.properties 配置文件
+            //      初始化 EurekaTransportConfig
             EurekaClientConfig eurekaClientConfig = new DefaultEurekaClientConfig();
+            // 初始化 DiscoveryClient
             eurekaClient = new DiscoveryClient(applicationInfoManager, eurekaClientConfig);
         } else {
             applicationInfoManager = eurekaClient.getApplicationInfoManager();
         }
 
         PeerAwareInstanceRegistry registry;
-        if (isAws(applicationInfoManager.getInfo())) {
+        if (isAws(applicationInfoManager.getInfo())) { // AWS相关，不走这个分支
             registry = new AwsInstanceRegistry(
                     eurekaServerConfig,
                     eurekaClient.getEurekaClientConfig(),

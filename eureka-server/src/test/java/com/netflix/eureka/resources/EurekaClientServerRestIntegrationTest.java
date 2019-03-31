@@ -90,10 +90,17 @@ public class EurekaClientServerRestIntegrationTest {
                 serverCodecs,
                 eurekaServiceUrl
         );
+
+        //启动之后 hang 住，然后可以用别的 client 去注册它。
+//        Thread.sleep(Long.MAX_VALUE);
     }
 
     @AfterClass
     public static void tearDown() throws Exception {
+
+        //启动之后 hang 住，然后可以用别的 client 去注册它。
+        Thread.sleep(Long.MAX_VALUE);
+
         removeEurekaConfiguration();
         if (jerseyReplicationClient != null) {
             jerseyReplicationClient.shutdown();
@@ -232,15 +239,30 @@ public class EurekaClientServerRestIntegrationTest {
     }
 
     private static void startServer() throws Exception {
-        File warFile = findWar();
+//        File warFile = findWar();
+//
+//        server = new Server(8080);
+//
+//        WebAppContext webapp = new WebAppContext();
+//        webapp.setContextPath("/");
+//        webapp.setWar(warFile.getAbsolutePath());
+//        server.setHandler(webapp);
+//
+//        server.start();
+//
+//        eurekaServiceUrl = "http://localhost:8080/v2";
 
+        //修改打 war 包的方式，改成
         server = new Server(8080);
 
-        WebAppContext webapp = new WebAppContext();
-        webapp.setContextPath("/");
-        webapp.setWar(warFile.getAbsolutePath());
-        server.setHandler(webapp);
+        String path = "D:/develop/workspaces/idea/eureka";
 
+        // TODO Thread.currentThread().getContextClassLoader() 获取不到路径，先暂时这样；
+        WebAppContext webAppCtx = new WebAppContext(new File(path + "/eureka-server/src/main/webapp").getAbsolutePath(), "/");
+        webAppCtx.setDescriptor(new File(path + "/eureka-server/src/main/webapp/WEB-INF/web.xml").getAbsolutePath());
+        webAppCtx.setResourceBase(new File(path + "/eureka-server/src/main/resources").getAbsolutePath());
+        webAppCtx.setClassLoader(Thread.currentThread().getContextClassLoader());
+        server.setHandler(webAppCtx);
         server.start();
 
         eurekaServiceUrl = "http://localhost:8080/v2";

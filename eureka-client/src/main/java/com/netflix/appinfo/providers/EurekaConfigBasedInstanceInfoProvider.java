@@ -44,19 +44,23 @@ public class EurekaConfigBasedInstanceInfoProvider implements Provider<InstanceI
 
     @Override
     public synchronized InstanceInfo get() {
+        //这里配置都会从 eureka-client.properties 配置文件中加载配置
         if (instanceInfo == null) {
-            // Build the lease information to be passed to the server based on config
+            //构建 LeaseInfo
+            // Build the lease information to be passed to the server based on config 根据配置构建要传递给服务器的租赁信息
             LeaseInfo.Builder leaseInfoBuilder = LeaseInfo.Builder.newBuilder()
-                    .setRenewalIntervalInSecs(config.getLeaseRenewalIntervalInSeconds())
-                    .setDurationInSecs(config.getLeaseExpirationDurationInSeconds());
+                    .setRenewalIntervalInSecs(config.getLeaseRenewalIntervalInSeconds()) //默认 30
+                    .setDurationInSecs(config.getLeaseExpirationDurationInSeconds()); // 默认 90
 
             if (vipAddressResolver == null) {
                 vipAddressResolver = new Archaius1VipAddressResolver();
             }
 
-            // Builder the instance information to be registered with eureka server
+            // 构建 InstanceInfo
+            // Builder the instance information to be registered with eureka server 构建要在 eureka server 上注册的实例信息
             InstanceInfo.Builder builder = InstanceInfo.Builder.newBuilder(vipAddressResolver);
 
+            //如果配置了 instanceId，则使用配置的值，如果没有配置则使用 hostname
             // set the appropriate id for the InstanceInfo, falling back to datacenter Id if applicable, else hostname
             String instanceId = config.getInstanceId();
             DataCenterInfo dataCenterInfo = config.getDataCenterInfo();
