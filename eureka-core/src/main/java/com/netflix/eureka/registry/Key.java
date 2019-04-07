@@ -8,23 +8,44 @@ import java.util.Arrays;
 
 public class Key {
 
+    //键类型
     public enum KeyType {
         JSON, XML
     }
 
     /**
-     * An enum to define the entity that is stored in this cache for this key.
+     * 实体类型
+     * An enum to define the entity that is stored in this cache for this key.  一个枚举，用于定义为该键存储在此缓存中的实体。
      */
     public enum EntityType {
         Application, VIP, SVIP
     }
 
+    /**
+     * 实体名
+     */
     private final String entityName;
+
     private final String[] regions;
+    /**
+     * 请求参数类型
+     */
     private final KeyType requestType;
+    /**
+     * 请求 API 版本号
+     */
     private final Version requestVersion;
+    /**
+     * hashKey
+     */
     private final String hashKey;
+    /**
+     * 实体类型
+     */
     private final EntityType entityType;
+    /**
+     *
+     */
     private final EurekaAccept eurekaAccept;
 
     public Key(EntityType entityType, String entityName, KeyType type, Version v, EurekaAccept eurekaAccept) {

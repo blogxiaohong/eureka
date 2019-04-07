@@ -318,7 +318,7 @@ public class InstanceInfo {
     }
 
     @Override
-    public int hashCode() {
+    public int hashCode() { // 只使用 ID 计算 hashcode
         final int prime = 31;
         int result = 1;
         result = prime * result + ((getId() == null) ? 0 : getId().hashCode());
@@ -326,7 +326,7 @@ public class InstanceInfo {
     }
 
     @Override
-    public boolean equals(Object obj) {
+    public boolean equals(Object obj) { // 只对比 ID
         if (this == obj) {
             return true;
         }

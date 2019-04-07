@@ -159,6 +159,7 @@ public class ApplicationsResource {
                     .header(HEADER_CONTENT_TYPE, returnMediaType)
                     .build();
         } else {
+            //从缓存中获取注册表
             response = Response.ok(responseCache.get(cacheKey))
                     .build();
         }
@@ -220,6 +221,7 @@ public class ApplicationsResource {
         }
 
         CurrentRequestVersion.set(Version.toEnum(version));
+
         KeyType keyType = Key.KeyType.JSON;
         String returnMediaType = MediaType.APPLICATION_JSON;
         if (acceptHeader == null || !acceptHeader.contains(HEADER_JSON_VALUE)) {

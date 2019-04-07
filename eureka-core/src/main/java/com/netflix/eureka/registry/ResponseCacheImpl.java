@@ -129,6 +129,7 @@ public class ResponseCacheImpl implements ResponseCache {
         long responseCacheUpdateIntervalMs = serverConfig.getResponseCacheUpdateIntervalMs();
         this.readWriteCacheMap =
                 CacheBuilder.newBuilder().initialCapacity(1000)
+                        //自动过期：读写缓存写入时，会创建一个自动任务，每个一段时间自动过期，默认时间是 180 秒;
                         .expireAfterWrite(serverConfig.getResponseCacheAutoExpirationInSeconds(), TimeUnit.SECONDS)
                         .removalListener(new RemovalListener<Key, Value>() {
                             @Override
@@ -152,7 +153,11 @@ public class ResponseCacheImpl implements ResponseCache {
                             }
                         });
 
+        // shouldUseReadOnlyResponseCache 默认值为 true
         if (shouldUseReadOnlyResponseCache) {
+            // 被动过期：创建一个定时任务，定时刷新 readOnlyCacheMap，时间间隔默认是 30 秒
+            // 所以会有一个问题，默认配置下，应用实例注册、下线、过期时，不会很快刷新到 readWriteCacheMap 缓存里。
+            // 别的服务要调用这个服务，需要最大延迟 30 秒才会感知到
             timer.schedule(getCacheUpdateTask(),
                     new Date(((System.currentTimeMillis() / responseCacheUpdateIntervalMs) * responseCacheUpdateIntervalMs)
                             + responseCacheUpdateIntervalMs),
@@ -177,6 +182,8 @@ public class ResponseCacheImpl implements ResponseCache {
                         logger.debug("Updating the client cache from response cache for key : {} {} {} {}", args);
                     }
                     try {
+                        // 对比 readOnlyCacheMap 和 readWriteCacheMap 的缓存值，
+                        // 如果不一致，则将 readWriteCacheMap 中的缓存值保存到 readOnlyCacheMap 中
                         CurrentRequestVersion.set(key.getVersion());
                         Value cacheValue = readWriteCacheMap.get(key);
                         Value currentCacheValue = readOnlyCacheMap.get(key);
@@ -235,7 +242,8 @@ public class ResponseCacheImpl implements ResponseCache {
     }
 
     /**
-     * Invalidate the cache of a particular application.
+     *
+     * Invalidate the cache of a particular application.    使特定应用程序的缓存无效。
      *
      * @param appName the application name of the application.
      */
@@ -267,10 +275,12 @@ public class ResponseCacheImpl implements ResponseCache {
      * @param keys the list of keys for which the cache information needs to be invalidated.
      */
     public void invalidate(Key... keys) {
+        //逐个过期每个缓存键值
         for (Key key : keys) {
             logger.debug("Invalidating the response cache key : {} {} {} {}, {}",
                     key.getEntityType(), key.getName(), key.getVersion(), key.getType(), key.getEurekaAccept());
 
+            //过期读写缓存
             readWriteCacheMap.invalidate(key);
             Collection<Key> keysWithRegions = regionSpecificKeys.get(key);
             if (null != keysWithRegions && !keysWithRegions.isEmpty()) {
@@ -344,11 +354,19 @@ public class ResponseCacheImpl implements ResponseCache {
     Value getValue(final Key key, boolean useReadOnlyCache) {
         Value payload = null;
         try {
+            // useReadOnlyCache 默认值为 true，先从只读缓存中读取注册表；
+            // 如果只读缓存中没有，则从读写缓存中获取；
+            // 如果读写缓存中也没有，则从 InstanceRegistry 中获取；
+            // useReadOnlyCache 如果设置为 false，会降低一些性能
             if (useReadOnlyCache) {
                 final Value currentPayload = readOnlyCacheMap.get(key);
                 if (currentPayload != null) {
                     payload = currentPayload;
                 } else {
+                    // readWriteCacheMap 是 LoadingCache 类型，
+                    // LoadingCache 是 guava 中的 API，它的 get 方法会从缓存中读取指定 key 的 value，
+                    // 如果没有这个 key，会去创建这个 key/value。
+                    // 而这个地方的 readWriteCacheMap ，当没有找到指定的 key 而去创建 key 时，会从 InstanceRegistry 中获取
                     payload = readWriteCacheMap.get(key);
                     readOnlyCacheMap.put(key, payload);
                 }
